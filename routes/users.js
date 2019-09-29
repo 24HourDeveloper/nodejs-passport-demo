@@ -1,5 +1,9 @@
 const express = require("express");
+const bcrypt = require("bcryptjs");
+const passport = require("passport");
 const route = express.Router();
+
+const { ensureAuthenticated } = require("../config/auth");
 const User = require("../models/Users");
 
 route.get("/login", (req, res) => res.render("login"));
@@ -32,9 +36,41 @@ route.post("/register", (req, res) => {
       email,
       password
     });
-    console.log(user);
-    res.send("User registered");
+
+    bcrypt.genSalt(10, (err, salt) => {
+      bcrypt
+        .hash(user.password, salt)
+        .then(hash => {
+          user.password = hash;
+          user
+            .save()
+            .then(user => {
+              req.flash("success_msg", "You are now registered and can log in");
+              res.redirect("/user/login");
+            })
+            .catch(err => console.log(err));
+        })
+        .catch(err => console.log(err));
+    });
   }
+});
+
+route.get("/dashboard", ensureAuthenticated, (req, res) => {
+  res.render("dashboard");
+});
+
+route.get("/logout", (req, res) => {
+  req.logOut();
+  req.flash("success_msg", "You are successfully logged out!");
+  res.redirect("login");
+});
+
+route.post("/login", (req, res, next) => {
+  passport.authenticate("local", {
+    successRedirect: "dashboard",
+    failureRedirect: "login",
+    failureFlash: true
+  })(req, res, next);
 });
 
 module.exports = route;
